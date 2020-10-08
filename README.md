@@ -1,2 +1,0 @@
-# ST
-Stranger Things Project
