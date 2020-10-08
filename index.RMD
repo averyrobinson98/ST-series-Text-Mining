@@ -1,0 +1,548 @@
+---
+title: "Analysis of Netflix's Stranger Things"
+output:
+  rmarkdown::html_document:
+    theme: united
+    highlight: tango
+    toc: true
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r,include=FALSE}
+library(tidytext)
+library(dplyr)
+library(stringr)
+library(textdata)
+library(formattable)
+library(stringi)
+library(tm)
+library(forcats)
+library(ggplot2)
+library(RColorBrewer)
+library(wordcloud)
+library(reshape2) 
+library(tidyr)
+```
+
+```{r, include=FALSE}
+load("originaldata.RDATA")
+```
+
+***
+
+<font size="4"> Netflix's Stranger Things has been one of the most influential shows of the last five years. 40.7 million people viewed the third season the weekend it came out -- a Netflix record. To gain insights into my favorite show, I went through previous episode scripts. I begin my report with general statistics, move on to word and sentiment analysis, and then analyze the IMDB ratings for each episode. Finally, I regress the ratings on certain statistics formed in earlier sections to explain variation in scores across episodes.  </font>
+
+***
+
+## Exploratory Data Analysis
+
+```{r,include=FALSE}
+colors <- data.frame(color= c("#0F2970","#5B0000","#4D5463","#22847C","goldenrod2","violetred4","dodgerblue4","#02440F","saddlebrown","mediumvioletred"))
+colors$Characters <- factor(MainChars)
+```
+
+```{r,fig.width=3.5,fig.height=3,echo=FALSE}
+
+order <- Char_Stats %>% filter(Category=="TotalLines") %>% arrange(Value) %>% select(Characters) %>% unlist %>% unname
+colors <- colors %>% arrange(factor(Characters, levels=order))
+
+A <- Char_Stats %>% filter(Category=="TotalLines") %>% arrange(Value) %>% mutate(Characters=fct_reorder(Characters,Value)) %>%
+                ggplot(aes(x=Characters,y=Value,fill=Characters))+
+                geom_bar(stat="identity",show.legend = F)+
+                scale_fill_manual(values=colors$color)+
+                geom_text(aes(label=Characters,hjust=1.5),angle=90,color="white")+
+                geom_text(aes(label=Value,vjust=-.34),color="white",size=3)+
+                theme_dark()+
+                theme(axis.text=element_blank(),axis.ticks = element_blank(), axis.title.x=element_blank(),axis.title.y=element_blank())+
+                geom_text(aes(x="Nancy",y=1050, label="Total Lines"),color="black",size=5)
+
+order <- Char_Stats %>% filter(Category == "AvgLineLength") %>% arrange(Value) %>% select(Characters) %>% unlist %>% unname
+colors <- colors %>% arrange(factor(Characters, levels=order))
+
+
+C <- Char_Stats %>% filter(Category=="AvgLineLength") %>% arrange(Value) %>% mutate(Characters=fct_reorder(Characters,Value)) %>%
+                ggplot(aes(x=Characters,y=Value,fill=Characters))+
+                geom_bar(stat="identity",show.legend = F)+
+                scale_fill_manual(values=colors$color)+
+                geom_text(aes(label=Characters,hjust=1.5),angle=90,color="white")+
+                geom_text(aes(label=round(Value,1),vjust=-.34),color="white",size=3)+
+                theme_dark()+
+                theme(axis.text=element_blank(),axis.ticks = element_blank(), axis.title.x=element_blank(),axis.title.y=element_blank())+
+                geom_text(aes(x="Nancy", y=10.2,label="Average # Words Per Line"),color="black",size=5)
+
+order <- Char_Stats %>% filter(Category == "AvgWordLength") %>% arrange(Value) %>% select(Characters) %>% unlist %>% unname
+colors <- colors %>% arrange(factor(Characters, levels=order))
+
+D <- Char_Stats %>% filter(Category=="AvgWordLength") %>% arrange(Value) %>% mutate(Characters=fct_reorder(Characters,Value)) %>%
+                ggplot(aes(x=Characters,y=Value,fill=Characters))+
+                geom_bar(stat="identity",show.legend = F)+
+                scale_fill_manual(values=colors$color)+
+                geom_text(aes(label=Characters,hjust=1.5),angle=90,color="white")+
+                geom_text(aes(label=round(Value,1),vjust=-.34),color="white",size=3)+
+                theme_dark()+
+                ylim(0,5)+
+                theme(axis.text=element_blank(),axis.ticks = element_blank(), axis.title.x=element_blank(),axis.title.y=element_blank())+
+                geom_text(aes(x="Hopper", y=5,label="Average Word Length"),color="black",size=5)
+
+order <- Char_Stats %>% filter(Category == "Vocab") %>% arrange(Value) %>% select(Characters) %>% unlist %>% unname
+colors <- colors %>% arrange(factor(Characters, levels=order))
+
+E <- Char_Stats %>% filter(Category=="Vocab") %>% arrange(Value) %>% mutate(Characters=fct_reorder(Characters,Value)) %>%
+                ggplot(aes(x=Characters,y=Value,fill=Characters))+
+                geom_bar(stat="identity",show.legend = F)+
+                scale_fill_manual(values=colors$color)+
+                geom_text(aes(label=Characters,hjust=1.5),angle=90, color="white")+
+                geom_text(aes(label=Value,vjust=-.34),color="white",size=3)+
+                theme_dark()+
+                ylim(0,1800)+
+                theme(axis.text=element_blank(),axis.ticks = element_blank(), axis.title=element_blank())+
+                geom_text(aes(x="Lucas", y=1770,label="Vocabulary Size"),color="black",size=5)
+```
+
+#### General Character Statistics
+
+***
+
+
+<font size="3"> To start, I gathered some basic statistics on the main characters' speaking patterns:
+
+</font>
+
+```{r,fig.width=12,fig.height=7,echo=FALSE}
+gridExtra::grid.arrange(A,C,D,E,ncol=2)
+```
+
+<font size="3"> The first aspect of these graphs that caught my eye was Eleven's top spot in "Average Word Length". I expected her to be near the bottom in each category, yet after further analysis, it is clear that her frequent one-word lines is the reason for this placement. Through the series, Eleven has exactly 150 lines that contain only one word, meaning that she forgoes typical stop words such as "to" and "for" -- words that would bring down her average word length.
+
+I also noted Dustin's placements of first with most total lines and fifth with median number of words per line. This indicates he is a frequent speaker, yet tends not to say too much, which instantly brings back memories of all his "run!"s and "sh\*t"s (Out of all the characters, Dustin has the highest number of "sh\*t"s).
+
+Additionally, Steve's placement of having the  second highest number of words per line is interesting. I never thought of Steve as verbose, although he did have numerous lengthy conversations about best practices for hair treatment and how to find the undercover Russians. </font>
+
+
+* * *
+
+#### Season-to-Season Line Proportion Change
+
+
+<font size="3"> I was interested to find out how the roles of each character changed from season to season. Specifically, I wanted to know if their percentage of lines spoken out of all the main characters fluctuated. </font>
+
+```{r,echo=FALSE}
+
+dark = "aliceblue"
+light = "aliceblue"
+
+CharWordCount <- tidy_Chars %>%filter(Season==1) %>% count(Character,sort=T)
+season1 <- CharWordCount %>% select(n) %>% unlist %>% unname
+
+CharWordCount <- CharWordCount %>% mutate(total=sum(n))
+CharWordCount <- CharWordCount %>% mutate(PropS1 = n/total)
+
+Props <- data.frame(Characters=MainChars,S1=round(CharWordCount$PropS1,3))
+
+CharWordCount <- tidy_Chars %>%filter(Season==2) %>% count(Character,sort=T)
+season2 <- CharWordCount %>% select(n) %>% unlist %>% unname
+
+CharWordCount <- CharWordCount %>% mutate(total=sum(n))
+CharWordCount <- CharWordCount %>% mutate(PropS2 = n/total)
+
+Props$S2 <- round(CharWordCount$PropS2,3)
+
+CharWordCount <- tidy_Chars %>%filter(Season==3) %>% count(Character,sort=T)
+season3 <- CharWordCount %>% select(n) %>% unlist %>% unname
+
+CharWordCount <- CharWordCount %>% mutate(total=sum(n))
+CharWordCount <- CharWordCount %>% mutate(PropS3 = n/total)
+
+Props$S3 <- round(CharWordCount$PropS3,3)
+
+Props <- data.frame(t(Props))
+
+Props <- Props[-1,]
+
+
+Props <- sapply(Props,as.numeric)
+Props <- matrix(scales::label_percent(accuracy = .01)(Props), ncol = 10)
+Props <- as.data.frame(Props)
+colnames(Props) <- MainChars
+
+Props$Season <- factor(1:3)
+Props <- Props[,c("Season",MainChars)]
+rownames(Props) <- NULL
+
+
+formattable(Props, list("Season"=formatter("span",style=~style(color="black",font.weight="bold"))))
+
+
+```
+
+<font size="3">
+I performed a chi square test on the raw data to see if the values flucuated in a statistically significant way, and with a p value of 2.2e-16, it can be concluded that the characters' speaking percentages fluctuated with the Season. From the table above, we can see that Eleven contributed much more in seasons 2 and 3 than in season 1, which is where most of her one-word lines happened. We can also see Will's change in contribution from Season 1 to Season 2 and 3, given he spent most of Season 1 in the upside down.
+
+More subtly, we can see that the only two characters that "peaked" in Season 2 were Will and Mike, and that everyone else had their highest speaking percentage in either Season 1 or Season 3.
+
+I was surprised to see that Steve's total percentage for Season 3 was lower than in the other seasons, yet its important to keep in mind that Season 3 had the highest number of lines of all the seasons (Season 3 had 4164 lines, while Season 2 and Season 1 had 3695 and 3413, respectively). Even though Steve had more lines in Season 3, that doesn't automatically tranlate to him having a larger proportion of lines from main characters.
+
+</font>
+
+***
+
+
+#### Word Frequency Analysis
+
+<font size="3"> I then wanted to find patterns in the specific words being used, both by the main characters and in general.</font>
+
+<font size="3"> To start, I filtered out typical "stop" words such as "and" and "he", calculated the most common words, and was left with the following results: </font>
+
+```{r,echo=FALSE,message=FALSE,fig.width=12}
+MostCom <- tidy_all
+MostCom <- MostCom %>% count(word,sort=T)
+
+MostCom <- MostCom %>% filter(!word %in% c("yeah","hey","uh","gonna"))
+
+MostCom <- MostCom%>% slice_head(n=300)
+
+MostCom %>%
+                ggplot(aes(x="",y=n,label=word,color=n))+
+                geom_text(position = position_jitter(seed=130,width=.55),size=6,check_overlap = T,show.legend = T)+
+                scale_color_gradient(low="violetred4",high="navy")+
+                theme_classic()+
+                labs(color="Frequency")+
+                ggtitle("Most Common Words")+
+                theme_dark()+
+                theme(axis.ticks=element_blank(),axis.title = element_blank(),plot.title=element_text(hjust=.5,size=16),axis.line.y=element_blank(),axis.text.x = element_blank())
+                
+#ggplot2::annotate("segment",x="Will",xend="Dustin",y=1700,yend=1700,colour="black",arrow=arrow())
+```
+
+<font size="3"> Naturally, we see many names near the top. The names could have been mentioned in any context, whether the character was being talked to or talked about. The order of names from most frequently mentioned downward is Mike, Nancy, El, Steve, Lucas, Joyce, Jonathan, Dustin, Hopper, then Will. We also see other familiar words up top such as "sh\*t", "god", and "guys", words that Dustin might have uttered in all of his lines. These are three of the most common words in the series with counts of 240, 144, and 110, respectively. </font>
+
+***
+
+#### Unique Words Per Character
+
+
+<font size="3"> I was curious to see how the language in the seasons differed. To find unique words for each season, I used the tf-idf score, which stands for term frequency and inverse document frequency. This score takes into account both the frequency of the word in total and the appearance of the word in separate "documents", which in this case meant seasons. Unfortunately, the top unique words for each season did not reveal interesting information, so instead, I tried the same approach but with characters. Unique words by character yielded much more interesting results, as the table below shows. </font>
+
+
+```{r,fig.width=15,echo=FALSE,warning=FALSE}
+copy <- tidy_Chars %>% count(word,Character)
+copy <- copy %>% bind_tf_idf(word,Character,n)
+copy <- copy %>% arrange(desc(tf_idf))
+top10 <- copy %>% group_by(Character) %>% slice_head(n=12) %>% ungroup
+top10 <- top10[-c(11:12,23:24,34:35,43,45,59:60,71:72,83:84,95:96,99,101,114,118),]
+top10 <- top10 %>% select(word,Character) 
+top10 <- data.frame(top10)
+
+top10$order <- factor(rep(1:10,10))
+top10 <- reshape(top10, idvar = "order",timevar = "Character",direction = "wide") %>% data.frame()
+top10 <- top10[,-1]
+colnames(top10) <- MainChars
+
+formattable(top10,align=c(rep("c",10)),list("Joyce"=formatter("span",style=style(color="#0F2970",font.weight="bold")),
+            "Mike"=formatter("span",style=style(color="#5B0000",font.weight="bold")),
+            "Hopper"=formatter("span",style=style(color="#4D5463",font.weight="bold")),
+            "Nancy"=formatter("span",style=style(color="#22847C",font.weight="bold")),
+            "Dustin"=formatter("span",style=style(color="#B58413",font.weight="bold")),
+            "Lucas"=formatter("span",style=style(color="#99135A",font.weight="bold")),
+            "Jonathan"=formatter("span",style=style(color="#186ABC",font.weight="bold")),
+            "Steve"=formatter("span",style=style(color="#02440F",font.weight="bold")),
+            "Will"=formatter("span",style=style(color="saddlebrown",font.weight="bold")),
+            "Eleven"=formatter("span",style=style(color="mediumvioletred",font.weight="bold"))))
+
+```
+
+<font size="3"> The lists for the characters do a good job on shining light onto their personality, such as Hopper's "Smirnoff", El's "breather" (frequently heard as mouth breather), and Lucas's "weirdo".
+
+
+***
+
+
+#### Similarities in Speech
+
+<font size="3"> I enjoyed seeing the unique words each character use, but I was also curious to find out how similarly the characters speak. To narrow it down, I decided to focus on the aspect of common words. I found the top 100 common words per character, with "stop" words filtered out, and calculated the intersection percentage to make the following heat map. </font>
+
+```{r,out.width= "65%", out.extra='style="float:left; padding:10px"',echo=FALSE,warning=FALSE,message=FALSE}
+ComWords2 <- tidy_Chars %>% anti_join(stop_words)
+ComWords2 <- ComWords2 %>% count(Character,word,sort=T)
+
+additionalFilter <- c("yeah","hey","gonna","um","uh")
+
+ComWords2$word <- removeWords(ComWords2$word, additionalFilter)
+ComWords2$word[ComWords2$word==""] <- NA
+ComWords2 <- ComWords2[complete.cases(ComWords2),]
+
+ComWords2 <- ComWords2 %>% arrange(Character,desc(n))
+ComWords2 <- ComWords2 %>% group_by(Character) %>% slice_head(word,n=100)
+ComWords2 <- ComWords2[,-3]
+ComWords2 <- ComWords2 %>% pivot_wider(names_from=Character,values_from=word)
+
+
+adjMat <- matrix(NA,ncol=10,nrow=10)
+for(i in 1:10){
+                for(j in 1:10){
+                                adjMat[i,j]<- intersect(ComWords2[i] %>% unlist %>% unname,ComWords2[j] %>% unlist %>% unname) %>% length
+                }
+}
+
+adjMat[upper.tri(adjMat)] <- NA
+adjMat[adjMat==100] <- NA
+adjMat <- data.frame(adjMat)
+
+colnames(adjMat) <- MainChars
+adjMat$Chars <- MainChars
+adjMat <- melt(adjMat)
+index <- complete.cases(adjMat)
+adjMat <- adjMat[index,]
+
+adjMat %>% mutate(Chars=factor(Chars,levels=MainChars)) %>% 
+                ggplot(aes(x=Chars,y=variable,fill=value))+
+                geom_tile()+
+                guides(fill=guide_colorbar(ticks=F))+
+                scale_fill_gradient(low="goldenrod2",high="navyblue",limits=c(10,50),breaks=c(10,50),labels=c("low","high"),aes(fill=""))+
+                scale_y_discrete(position = "right")+
+                theme_dark()+
+                theme(axis.title=element_blank(),legend.position = "right")+
+                labs(title="Commonality of Top 100 Most Common Words Per Character")
+
+```
+
+<br>
+<font size="3"> With yellow being the lowest similarity, dark blue being the highest, and purple somewhere in the middle, we can see that the two characters with most similar speech are Joyce and Hopper. 
+<br><br>
+Additionally, Mike's row is one of the most purple, indicating that his word usage overlaps with most of the other characters.
+<br><br>
+We can see that the two characters with the least overlap in their top 100 words are Will and Eleven, the two characters with the least amount of lines. Interestly, they also seem to have the fewest words in common with each other than any other characters.
+<br><br>
+Nancy and Jonathan seem to speak a bit more simalrly to Joyce and Hopper than Lucas, Dustin, Will, or Eleven, yet Steve seems split between the older and younger groups.</font>
+
+
+
+***
+***
+
+## Sentiment Analysis
+
+#### Entire Series
+
+<font size="3"> After the initial word analysis, I wanted to begin analyzing the scripts by sentiment values. Using the afinn library, I mapped the sentiment values of the words from each episode to see if there was fluctation.  </font>
+
+
+```{r,warning=FALSE,echo=FALSE,message=FALSE,fig.width=10}
+afinnSents <- get_sentiments("afinn")
+afinn <- inner_join(tidy_all, afinnSents)
+afinn$value[afinn$word %in% c("god","jesus")] <- -2
+
+afinnEps<- afinn %>% group_by(Episode) %>% summarize(total=sum(value))
+afinnEps <- afinnEps %>% mutate(Season=factor(c(rep(1,8),rep(2,9),rep(3,8))))
+
+afinnEps$PosSum<- afinn %>% filter(value > 0) %>% group_by(Episode) %>% summarize(PosSum=sum(value)) %>% select(PosSum) %>% unlist %>% unname
+afinnEps$NegSum <- afinn %>% filter(value < 0) %>% group_by(Episode) %>% summarize(NegSum=sum(value)) %>% select(NegSum) %>% unlist %>% unname
+
+ggplot(afinnEps,aes(x=Episode,group=1))+
+                geom_area(aes(y=PosSum,fill="#F9D3FF"))+
+                geom_area(aes(y=NegSum,fill="#B5B5B5"))+
+                geom_line(aes(y=total,color="#F4B41D"),linetype="longdash",size=.4)+
+                scale_fill_manual(values=c( "#440154FF","#AA1449"),name=element_blank(),labels=c("Sum of Negatively Indexed Words","Sum of Positively Indexed Words"))+
+                scale_color_manual(values="#F4B41D",name=element_blank(),labels="Total Sum of Indexed Scores")+
+                theme_dark()+
+                theme(legend.position = "right",axis.ticks=element_blank(),legend.text = element_text(size=12),axis.title=element_text(size=12),panel.spacing.y = element_blank())+
+                geom_point(aes(y=total,color="#F4B41D"))+
+                labs(y="Sentiment Index")+
+                scale_x_discrete(limits=c(1:25), expand = c(0, 0)) +
+                geom_vline(mapping=aes(xintercept=values),color="gray30",data=SeasonCuts)+
+                geom_text(aes(x=c(3,9.5,18.5),y=-400,label=lab),color="#440154FF",size=4,data=SeasonCuts)
+```
+
+
+<font size="3"> In general, Stranger Things tends to have more negatively indexed words than positively indexed words, as we can see from the total sum of the scores. It seems that there tends to be more positively indexed words used near the end of each season, but aside from this, there do not seem to be any obvious trends. </font>
+
+
+***
+
+#### By Words
+
+
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE,fig.width=5, fig.height=5, out.extra='style="float:left; padding:10px"'}
+nrcSents <- get_sentiments("nrc")
+ComWords <- tidy_all %>% count(word,sort=T)
+ComWords <- ComWords %>% inner_join(nrcSents,by="word")
+ComWords <- ComWords %>% filter(!(word == "god" & sentiment %in% c("joy", "positive","trust"))) %>% filter(!(word=="dart")) #doesn't make sense for ST
+
+cols <- viridis::magma(8)
+#c("#CC0259","#DDB800","#A50092","#1300A5","#04B1D3","#94B0B2","#9494B2","#A886AA")
+cols[8] <- "maroon4"
+
+set.seed(123)
+ComWords %>%
+                filter(!(sentiment %in% c("positive","negative"))) %>%
+                acast(word~sentiment, value.var = "n",fill=0) %>%
+                comparison.cloud(random.order = F,max.words=200,colors=cols,match.colors = T, scale=c(4,.5),title.bg.colors = "gray84",title.size=1.5,min.freq=10)
+
+```
+
+
+<font size="3"> Next, I wanted to go back to the show's most frequent words and break them up into sentiment categories as categorized by the NRC library. The top 200 non-neutral words of the series are encompassed in the word cloud to the left. As we can see, the most prolific categories are probably suprise and joy. I found this surprising, expecially considering the entire season sentiment graph just above.  </font>
+
+
+
+<font size="3"> After further analysis, it seems that, while the majority of words used are negatively indexed, the range of positive words is higher than the range of negative words. </font>
+
+<br><br><br><br><br><br><br><br><br><br>
+
+***
+
+#### By Character
+
+<font size="3"> I then wanted to return to the most common words for each character, categorize them according to the NRC sentiment library, and see the patterns in which characters frequently used words with certain sentiments. </font>
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE,fig.width=10,error=FALSE}
+sent_ComWords <- data.frame()
+
+for(i in 1:10){
+                temp <- ComWords2[[i]] %>% unlist %>% data.frame()
+                temp <- left_join(temp, nrcSents %>% filter(!sentiment %in% c("positive","negative"))  ,by=c("."="word"))
+                temp$Char <- rep(i,length(dim(temp)[1]))
+                sent_ComWords <- bind_rows(sent_ComWords,temp)
+}
+
+temp <- data.frame(Chars=MainChars,CharNum=1:10)
+
+sent_ComWords <- left_join(sent_ComWords,temp,by=c("Char"="CharNum"))
+sent_ComWords <- sent_ComWords[,-3]
+names(sent_ComWords) <- c("word","sentiment","char")
+sent_ComWords$char <- factor(sent_ComWords$char)
+
+sent_ComWords <- sent_ComWords %>% count(sentiment,char)
+sent_ComWords<- sent_ComWords %>% pivot_wider(names_from = char,values_from=n) %>% data.frame()
+sents <- sent_ComWords$sentiment
+sent_ComWords<- data.frame(sapply(sent_ComWords[,-1],function(x) x/sum(x,na.rm=T)))
+sent_ComWords$Sentiment <- factor(sents)
+dup <- sent_ComWords
+sent_ComWords <- sent_ComWords %>% pivot_longer(!Sentiment)
+
+
+
+order <- sent_ComWords[is.na(sent_ComWords$Sentiment),] %>% select(name,value) %>% arrange(value) %>% select(name) %>% unlist() %>% unname
+
+col <- viridis::magma(8)
+
+sent_ComWords %>% mutate(name=factor(name,levels=order)) %>% 
+ggplot(aes(x=name,y=value,fill=Sentiment))+
+                geom_bar(stat = "identity")+
+                scale_fill_manual(values=col,na.value="#545454",labels=c("Anger                  Highest:Dustin","Anticipation         Highest:Steve","Disgust                Highest:Joyce","Fear                    Highest:Eleven","Joy                      Highest:Eleven","Sadness              Highest:Eleven","Surprise              Highest:Will","Trust                   Highest:Eleven","Neutral                Highest:Hopper"))+
+                theme_minimal()+
+                labs(y="Percent")+
+                theme_dark()+
+                theme(axis.title.x=element_blank())
+```
+
+<font size="3">  As mentioned earlier, Eleven has the most one-word lines of the show. While this drives up her word length average, I  also believe this gives her the lowest percentage of neutral words, as she forgoes many common words that also might not be classified as stop words. This could contribute to why she has the highest percentage of fear, joy, sadness, and trust words. Additionally, Dustin's fiery dynamic makes his placement as top percentage of anger words unsurprising, yet I can't say I predicted Steve with anticipation. Even with these notable differences, the percentages across characters are very similar. </font>
+
+***
+
+## IMDB Rating Analysis
+
+<font size="3"> Finally, I was curious to see how the ratings of each episode fluctated as the series progressed. I scraped the episode ratings from IMDB and got the following results: </font>
+
+```{r, echo=FALSE,out.extra='style="float:left; padding:10px"',out.width= "65%"}
+ratings$Season <- factor(EpsbySeason$Season)
+temp <- ratings
+temp$Episode <- str_replace_all(ratings$Episode,"_"," ")
+
+
+temp %>% mutate(Episode= factor(Episode, levels=rev(Episode))) %>% 
+                ggplot(aes(x=Episode,y=Ratings))+
+                geom_segment(aes(col=Season,y=mean(ratings$Ratings), x=Episode, yend=Ratings, xend= Episode),size=1.5)+
+                scale_colour_manual(values=c("#440154FF","#D8006C","#EAC300"))+
+                geom_hline(mapping=aes(yintercept=mean(ratings$Ratings)),color="black")+
+                geom_label(label=ratings$Ratings,nudge_x =0,nudge_y = 0,size=2)+
+                ylim(6,9.5)+
+                coord_flip()+
+                labs(title="IMDB Episode Rating")+
+                theme_dark()+
+                theme(axis.title.y=element_blank(),plot.title = element_text(hjust=0.5,size=10))
+```
+
+
+```{r,fig.height=4,echo=FALSE,warning=FALSE,message=FALSE,out.extra='style="float:left; padding:10px"',out.width= "65%"}
+Chars <- str_extract(AllLines$Lines,"\\w*(?=:)")
+Chars <- data.frame(chars=Chars,Episode=AllLines$Episode)
+
+MainChars2 <- c(MainChars,"Bob","Billy","Max","Robin")
+
+LinesByMainChars <- Chars %>% group_by(Episode) %>% summarize(percent=sum(chars %in% MainChars2)/n()) %>% data.frame()
+
+LinesByMainChars$Season <- factor(EpsbySeason$Season)
+LinesByMainChars$Rating <-ratings$Ratings
+Chars <- NULL
+
+ggplot(LinesByMainChars,aes(x=Episode,group=1))+
+                geom_line(aes(y=percent*10,color="Percent of Lines from Main Characters"),size=1.3)+
+                geom_line(aes(y=Rating,color="Episode Rating"),size=1.3)+
+                theme_gray()+
+                scale_color_manual(values=c("#00004d","#009999"),name=element_blank())+
+                scale_y_continuous(name="Percent By Main Characters",breaks=c(1:10),labels=seq(.1,1,.1),sec.axis = sec_axis(trans=~.*10,name="Episode Rating",breaks=c(seq(10,100,10)), labels=c(1:10)))+
+                theme_dark()+
+                theme(axis.title.y.left=element_text(size=9,hjust=1,vjust=2.5),,axis.title.y.right = element_text(size=9,hjust=0,vjust=2.5),legend.position = "bottom")+
+                geom_vline(mapping=aes(xintercept=values),color="gray30",data=SeasonCuts)+
+                geom_text(aes(x=c(3,10.5,19.5),y=3,label=lab),color="black",size=3,data=SeasonCuts)
+```
+
+<br>
+<font size="3"> The trend in ratings is one of the most clear trends thus far. Given that each season represents its own color, the graph shows that IMDB scores tend to increase as the season progresses. The black vertical line represents the average of all the ratings, so we see that episodes tend to be below average the first few episodes of the season and above average for the last few episodes of the season. The exception to this trent is Episode 7 of Season 2: The Lost Sister. In this episode, Eleven leaves Hawkins to seek out her sister from the laboratory.</font>
+
+<br>
+<font size="3"> The low rating of the Lost Sister episode made me wonder if episodes that contained a higher percentage of lines from main characters had higher ratings. I calculated the percentage of lines spoken by main characters for each episode (with Max, Billy, Robin and Bob counting as main characters) and got the following results. </font>
+
+<br>
+<font size="3"> The lines somewhat follow each other, yet most notably at The Lost Sister episode. I would guess that there is some sort of trend here, indiciating that, for Stranger Things, people tend to prefer episodes with more main character speech. </font>
+
+
+<br><br>
+
+
+***
+***
+
+
+
+
+## Regression Results
+
+<font size="3">
+To try and better understand the variance of IMDB ratings, I regressed the ratings onto several factors. To start, I explored how the percentage of lines spoken by main characters could explain the variation in ratings. The results showed that this was an extremely good predictor, as the p-value from the F test was 5.13e-05. As we can see from the previous graph, however, the outlier episode 15 might be the reason for such a strong significance. I removed the outlier and fitted the new model; the resulting p-value was 0.4139, so without this episode, percentage of lines spoken by main characters does not actually explain much variation in the episode ratings.</font>
+<br><br>
+<font size="3">
+Next, I regressed ratings onto the number of lines by each character in each episode and followed with the number of words by each character in each episode. Lines per episode is not a significant predictor. For words per episode, Dustin seemed to explain some variation in the ratings, yet after taking out the outlier episode, the results proved insignificant.</font>
+<br><br>
+<font size="3">
+I then regressed ratings onto sentiment values to see if the percentage of a certain sentiment in an episode could explain variation in the rating. With a p-value from the overall F test rounding to 1, we can conclude sentiment does not explain a significant amount of variance in rating.</font>
+<br><br>
+<font size="3">
+Finally, I regressed rating onto the placement of the episode in the season to see if episodes earlier in the season scored lower than episodes later in the season. The results showed that placement was not a significant predi ctor, but after removing the outlier episode, placement became an extremely significant predictor, explaining 71% of the variation in ratings.</font>
+<br><br>
+<font size="3">
+Including the outlier episode, the variation in percentage of lines by main characters and number of words per character helped explain the variation in ratings. Excluding the outlier episode, it seems that the only significant factor that can explain variation in the ratings is the placement of the episode in the season -- episodes earlier in the season tend to score lower than episodes later in the season. </font>
+
+```{r,echo=FALSE,warning=FALSE}
+results <- data.frame(Predictor=c("Percentage of Lines by Main Characters","Percentage of Lines by Main Characters wo/ Outlier", "Number of Lines Per Character","Number of Words Per Character", "Number of Words Per Character wo/ Outlier","Sentiment Values", "Episode Placement","Episode Placement wo/ Outlier"), "P_Value"=c("5.13e-05***","0.4139","0.08728.","0.03845*","0.6943","1","0.1019","2.22e-07***"),  "R_Squared" = c("0.517","0.03056","0.6103","0.6669","0.3566","6.739e-28","0.112","0.712"),"R_Squared_Adjusted"=c("0.496","-0.0135","0.3319","0.4291","-0.1383","-0.03646","0.07343","0.6989"), "Significance"=c("Moderately Significant","Not Significant","Not Significant","Moderately Significant","Not Significant","Not Significant","Not Significant","Significant" ))
+
+formattable(results,align=c(rep("l",4)))
+# "Will"=formatter("span",style=style(color="saddlebrown",font.weight="bold"))
+```
+
+
+***
+***
+
+
+
+
+
+
