@@ -261,4 +261,68 @@ forGraph <- forGraph %>% group_by(name,Season) %>% summarize(TotLines=sum(value,
 
 
 
+####### create DF for feature selection
+df = LinesByMainChars
+names(df) <- c("Episode","Percent.By.Main","Season","Rating")
+
+temp <- LinesPerEp
+names(temp) = paste0(names(temp),"LineNum")
+temp$Episode = factor(1:25)
+
+df=left_join(df,temp,by="Episode")
+
+temp <- WordsPerEp
+temp$Episode = factor(1:25)
+df=left_join(df,temp,by="Episode")
+
+ComWords1 <- tidy_all 
+nrcSents <- get_sentiments("nrc")
+ComWords1 <- ComWords1 %>% inner_join(nrcSents,by="word")
+
+ComWords1 <- ComWords1 %>% count(Episode,sentiment) %>% filter(!sentiment %in% c("negative","positive"))
+ComWords1$EpTot <- rep(ComWords1 %>% group_by(Episode) %>% summarize(epTot=sum(n)) %>% select(epTot) %>% unlist %>% unname,each=8)
+ComWords1 <- ComWords1 %>% group_by(Episode,sentiment) %>% summarize(perc=n/EpTot)
+temp <- data.frame(ComWords1)
+ratings$Epnum <- factor(1:25)
+temp <- temp %>% left_join(ratings[,c(2,4)], by=c("Episode"="Epnum"))
+temp <- temp %>% pivot_wider(names_from=sentiment,values_from=perc)
+temp$Episode = factor(1:25)
+
+df=left_join(df,temp,by="Episode")
+
+temp <- data.frame(Episode = factor(1:25), EpPlace=c(1:8,1:9,1:8))
+df=left_join(df,temp,by="Episode")
+save(df,file="dfForAnalysis.RDATA")
+
+
+## small tests
+#Chi Square Test
+
+chTest <- Chars %>% group_by(Episode) %>% summarize(charsIn =sum(chars %in% MainChars2)) %>% data.frame()
+chTest$charsOut <- Chars %>% group_by(Episode) %>% summarize(charsOut = sum(!chars %in% MainChars2)) %>% select(charsOut) %>% unlist %>% unname
+
+chTest <- chTest[,-1]
+chisq.test(chTest)
+chTest1 <- chTest[-15,]
+chisq.test(chTest1)
+
+
+chTest$Season <-factor(EpsbySeason$Season)
+chTest2 <- chTest %>%group_by(Season) %>% summarize(AvgIn = mean(charsIn))
+chTest2$AvgOut <- chTest %>% group_by(Season) %>% summarize(AvgOut = mean(charsOut)) %>% select(AvgOut) %>% unlist %>% unname
+chTest2 <- chTest2[,-1]
+chisq.test(chTest2)
+
+chTest$Thirds <- factor(c(rep(1,3),rep(2,3),rep(3,2), rep(1,3),rep(2,3),rep(3,3), rep(1,3),rep(2,3),rep(3,2)))
+chTest3 <- chTest %>% group_by(Thirds) %>% summarize(AvgIn = mean(charsIn))
+chTest3$AvgOut <- chTest %>% group_by(Thirds) %>% summarize(AvgOut = mean(charsOut)) %>% select(AvgOut) %>% unlist %>% unname
+chTest3 <- chTest3[,-1]
+chisq.test(chTest3)
+
+#Chi Square Test for proportion of speaking per Season
+
+charwords <- data.frame(S1=season1,S2=season2,S3=season3)
+chisq.test(charwords)
+
+
 

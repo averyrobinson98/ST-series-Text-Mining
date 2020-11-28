@@ -1,5 +1,6 @@
 ---
 title: "Analysis of Netflix's Stranger Things"
+subtitle: "By Avery Robinson"
 output:
   rmarkdown::html_document:
     theme: united
@@ -27,19 +28,26 @@ library(RColorBrewer)
 library(wordcloud)
 library(reshape2) 
 library(tidyr)
+library(randomForest)
+library(leaps)
+library(glmnet)
 ```
 
 ```{r, include=FALSE}
 load("originaldata.RDATA")
+load("dfForAnalysis.RDATA")
+df = df[,-15]
+df[is.na(df)] <- 0
+df= df[-15,] # Remove outlier episode
 ```
 
 ***
 
-<font size="4"> Netflix's Stranger Things has been one of the most influential shows of the last five years. 40.7 million people viewed the third season the weekend it came out -- a Netflix record. To gain insights into my favorite show, I went through previous episode scripts. I begin my report with general statistics, move on to word and sentiment analysis, and then analyze the IMDB ratings for each episode. Finally, I regress the ratings on certain statistics formed in earlier sections to explain variation in scores across episodes.  </font>
+<font size="4"> Netflix's series _Stranger Things_ is one of the most influential shows of the last five years. Over forty million people viewed the third season the weekend of its release -- a Netflix record. To gain insights into my favorite show, I scraped the episode scripts for statistical analyses. I begin my report with general statistics, move on to word and sentiment analysis, and then analyze the IMDB ratings for each episode. Next, I use a variety of feature selection techniques as ways to identify variables that help best explain variation in each episode's IMDB rating.  </font>
 
 ***
 
-## Exploratory Data Analysis
+## Analysis
 
 ```{r,include=FALSE}
 colors <- data.frame(color= c("#0F2970","#5B0000","#4D5463","#22847C","goldenrod2","violetred4","dodgerblue4","#02440F","saddlebrown","mediumvioletred"))
@@ -104,7 +112,7 @@ E <- Char_Stats %>% filter(Category=="Vocab") %>% arrange(Value) %>% mutate(Char
                 geom_text(aes(x="Lucas", y=1770,label="Vocabulary Size"),color="black",size=5)
 ```
 
-#### General Character Statistics
+#### Character Statistics
 
 ***
 
@@ -120,8 +128,7 @@ gridExtra::grid.arrange(A,C,D,E,ncol=2)
 <font size="3"> The first aspect of these graphs that caught my eye was Eleven's top spot in "Average Word Length". I expected her to be near the bottom in each category, yet after further analysis, it is clear that her frequent one-word lines is the reason for this placement. Through the series, Eleven has exactly 150 lines that contain only one word, meaning that she forgoes typical stop words such as "to" and "for" -- words that would bring down her average word length.
 
 I also noted Dustin's placements of first with most total lines and fifth with median number of words per line. This indicates he is a frequent speaker, yet tends not to say too much, which instantly brings back memories of all his "run!"s and "sh\*t"s (Out of all the characters, Dustin has the highest number of "sh\*t"s).
-
-Additionally, Steve's placement of having the  second highest number of words per line is interesting. I never thought of Steve as verbose, although he did have numerous lengthy conversations about best practices for hair treatment and how to find the undercover Russians. </font>
+</font>
 
 
 * * *
@@ -185,8 +192,7 @@ I performed a chi square test on the raw data to see if the values flucuated in 
 
 More subtly, we can see that the only two characters that "peaked" in Season 2 were Will and Mike, and that everyone else had their highest speaking percentage in either Season 1 or Season 3.
 
-I was surprised to see that Steve's total percentage for Season 3 was lower than in the other seasons, yet its important to keep in mind that Season 3 had the highest number of lines of all the seasons (Season 3 had 4164 lines, while Season 2 and Season 1 had 3695 and 3413, respectively). Even though Steve had more lines in Season 3, that doesn't automatically tranlate to him having a larger proportion of lines from main characters.
-
+I was surprised to see that Steve's total percentage for Season 3 was lower than in the other seasons, yet its important to keep in mind that Season 3 had the highest number of lines of all the seasons (Season 3 had 4164 lines, while Season 2 and Season 1 had 3695 and 3413, respectively). Even though Steve had more lines in Season 3, that does not automatically translate to him having a larger proportion of lines from main characters.
 </font>
 
 ***
@@ -196,7 +202,7 @@ I was surprised to see that Steve's total percentage for Season 3 was lower than
 
 <font size="3"> I then wanted to find patterns in the specific words being used, both by the main characters and in general.</font>
 
-<font size="3"> To start, I filtered out typical "stop" words such as "and" and "he", calculated the most common words, and was left with the following results: </font>
+<font size="3"> To start, I filtered out typical _stop_ words such as "and" and "he", calculated the most common words, and was left with the following results: </font>
 
 ```{r,echo=FALSE,message=FALSE,fig.width=12}
 MostCom <- tidy_all
@@ -219,7 +225,7 @@ MostCom %>%
 #ggplot2::annotate("segment",x="Will",xend="Dustin",y=1700,yend=1700,colour="black",arrow=arrow())
 ```
 
-<font size="3"> Naturally, we see many names near the top. The names could have been mentioned in any context, whether the character was being talked to or talked about. The order of names from most frequently mentioned downward is Mike, Nancy, El, Steve, Lucas, Joyce, Jonathan, Dustin, Hopper, then Will. We also see other familiar words up top such as "sh\*t", "god", and "guys", words that Dustin might have uttered in all of his lines. These are three of the most common words in the series with counts of 240, 144, and 110, respectively. </font>
+<font size="3"> Naturally, we see many names near the top. The names could have been mentioned in any context, whether the character was being talked to or talked about. We also see other familiar words up top such as "sh\*t", "god", and "guys", which are the most common words in the series with counts of 240, 144, and 110, respectively. </font>
 
 ***
 
@@ -256,7 +262,7 @@ formattable(top10,align=c(rep("c",10)),list("Joyce"=formatter("span",style=style
 
 ```
 
-<font size="3"> The lists for the characters do a good job on shining light onto their personality, such as Hopper's "Smirnoff", El's "breather" (frequently heard as mouth breather), and Lucas's "weirdo".
+<font size="3"> Watchers of the show will observe that the words for the characters do a good job on shining light onto each personality, such as Hopper's "Smirnoff", Eleven's "breather" (frequently heard as mouth breather), and Lucas's "weirdo".
 
 
 ***
@@ -264,7 +270,7 @@ formattable(top10,align=c(rep("c",10)),list("Joyce"=formatter("span",style=style
 
 #### Similarities in Speech
 
-<font size="3"> I enjoyed seeing the unique words each character use, but I was also curious to find out how similarly the characters speak. To narrow it down, I decided to focus on the aspect of common words. I found the top 100 common words per character, with "stop" words filtered out, and calculated the intersection percentage to make the following heat map. </font>
+<font size="3"> I enjoyed seeing the unique words each character use, but I was also curious to find out how similarly the characters speak. To narrow it down, I decided to focus on the aspect of common words. I found the top 100 common words per character, with _stop_ words filtered out, and calculated the intersection percentage to make the following heat map. </font>
 
 ```{r,out.width= "65%", out.extra='style="float:left; padding:10px"',echo=FALSE,warning=FALSE,message=FALSE}
 ComWords2 <- tidy_Chars %>% anti_join(stop_words)
@@ -316,7 +322,7 @@ adjMat %>% mutate(Chars=factor(Chars,levels=MainChars)) %>%
 <br><br>
 Additionally, Mike's row is one of the most purple, indicating that his word usage overlaps with most of the other characters.
 <br><br>
-We can see that the two characters with the least overlap in their top 100 words are Will and Eleven, the two characters with the least amount of lines. Interestly, they also seem to have the fewest words in common with each other than any other characters.
+We can also see that the two characters with the least overlap in their top 100 words are Will and Eleven, the two characters with the least amount of lines. Interestly, they also seem to have the fewest words in common with each other than any other pair of characters.
 <br><br>
 Nancy and Jonathan seem to speak a bit more simalrly to Joyce and Hopper than Lucas, Dustin, Will, or Eleven, yet Steve seems split between the older and younger groups.</font>
 
@@ -325,11 +331,10 @@ Nancy and Jonathan seem to speak a bit more simalrly to Joyce and Hopper than Lu
 ***
 ***
 
-## Sentiment Analysis
+#### Sentiment Analysis
 
-#### Entire Series
 
-<font size="3"> After the initial word analysis, I wanted to begin analyzing the scripts by sentiment values. Using the afinn library, I mapped the sentiment values of the words from each episode to see if there was fluctation.  </font>
+<font size="3"> After the initial word analysis, I wanted to analyze the scripts by sentiment values. Using the afinn library in R, I mapped the sentiment values of the words from each episode to see if there was fluctation.  </font>
 
 
 ```{r,warning=FALSE,echo=FALSE,message=FALSE,fig.width=10}
@@ -364,10 +369,6 @@ ggplot(afinnEps,aes(x=Episode,group=1))+
 
 ***
 
-#### By Words
-
-
-
 ```{r,echo=FALSE,message=FALSE,warning=FALSE,fig.width=5, fig.height=5, out.extra='style="float:left; padding:10px"'}
 nrcSents <- get_sentiments("nrc")
 ComWords <- tidy_all %>% count(word,sort=T)
@@ -387,9 +388,7 @@ ComWords %>%
 ```
 
 
-<font size="3"> Next, I wanted to go back to the show's most frequent words and break them up into sentiment categories as categorized by the NRC library. The top 200 non-neutral words of the series are encompassed in the word cloud to the left. As we can see, the most prolific categories are probably suprise and joy. I found this surprising, expecially considering the entire season sentiment graph just above.  </font>
-
-
+<font size="3"> Next, I wanted to go back to the show's most frequent words and break them up into sentiment categories as categorized by the NRC library in R. The top 200 non-neutral words of the series are encompassed in the word cloud to the left. As we can see, the most prolific categories are probably suprise and joy. I found this surprising, expecially considering the entire season sentiment graph just above.  </font>
 
 <font size="3"> After further analysis, it seems that, while the majority of words used are negatively indexed, the range of positive words is higher than the range of negative words. </font>
 
@@ -397,7 +396,6 @@ ComWords %>%
 
 ***
 
-#### By Character
 
 <font size="3"> I then wanted to return to the most common words for each character, categorize them according to the NRC sentiment library, and see the patterns in which characters frequently used words with certain sentiments. </font>
 
@@ -442,11 +440,11 @@ ggplot(aes(x=name,y=value,fill=Sentiment))+
                 theme(axis.title.x=element_blank())
 ```
 
-<font size="3">  As mentioned earlier, Eleven has the most one-word lines of the show. While this drives up her word length average, I  also believe this gives her the lowest percentage of neutral words, as she forgoes many common words that also might not be classified as stop words. This could contribute to why she has the highest percentage of fear, joy, sadness, and trust words. Additionally, Dustin's fiery dynamic makes his placement as top percentage of anger words unsurprising, yet I can't say I predicted Steve with anticipation. Even with these notable differences, the percentages across characters are very similar. </font>
+<font size="3">  As mentioned earlier, Eleven has the most one-word lines of the show. While this drives up her word length average, I  also believe this gives her the lowest percentage of neutral words, as she forgoes many common words that also might not be classified as _stop_ words. This could contribute to why she has the highest percentage of fear, joy, sadness, and trust words. Additionally, Dustin's fiery dynamic makes his placement as top percentage of anger words unsurprising. Aside from a few notable differences, the percentages across characters are similar. </font>
 
 ***
 
-## IMDB Rating Analysis
+#### IMDB Rating Analysis
 
 <font size="3"> Finally, I was curious to see how the ratings of each episode fluctated as the series progressed. I scraped the episode ratings from IMDB and got the following results: </font>
 
@@ -495,13 +493,13 @@ ggplot(LinesByMainChars,aes(x=Episode,group=1))+
 ```
 
 <br>
-<font size="3"> The trend in ratings is one of the most clear trends thus far. Given that each season represents its own color, the graph shows that IMDB scores tend to increase as the season progresses. The black vertical line represents the average of all the ratings, so we see that episodes tend to be below average the first few episodes of the season and above average for the last few episodes of the season. The exception to this trent is Episode 7 of Season 2: The Lost Sister. In this episode, Eleven leaves Hawkins to seek out her sister from the laboratory.</font>
+<font size="3"> The trend in ratings is one of the most clear trends thus far. Given that each season represents its own color, the graph shows that IMDB scores tend to increase as the season progresses. The black vertical line represents the average of all the ratings, so we see that episodes tend to be below average the first few episodes of the season and above average for the last few episodes of the season. The exception to this trend is Episode 7 of Season 2: The Lost Sister. In this episode, Eleven leaves Hawkins to seek out her sister from the laboratory.</font>
 
 <br>
 <font size="3"> The low rating of the Lost Sister episode made me wonder if episodes that contained a higher percentage of lines from main characters had higher ratings. I calculated the percentage of lines spoken by main characters for each episode (with Max, Billy, Robin and Bob counting as main characters) and got the following results. </font>
 
 <br>
-<font size="3"> The lines somewhat follow each other, yet most notably at The Lost Sister episode. I would guess that there is some sort of trend here, indiciating that, for Stranger Things, people tend to prefer episodes with more main character speech. </font>
+<font size="3"> The lines somewhat follow each other, yet most notably at The Lost Sister episode. I would guess that, after removing the outlier episode, the correlation would be much weaker. </font>
 
 
 <br><br>
@@ -513,30 +511,166 @@ ggplot(LinesByMainChars,aes(x=Episode,group=1))+
 
 
 
-## Regression Results
+## Feature Selection
 
 <font size="3">
-To try and better understand the variance of IMDB ratings, I regressed the ratings onto several factors. To start, I explored how the percentage of lines spoken by main characters could explain the variation in ratings. The results showed that this was an extremely good predictor, as the p-value from the F test was 5.13e-05. As we can see from the previous graph, however, the outlier episode 15 might be the reason for such a strong significance. I removed the outlier and fitted the new model; the resulting p-value was 0.4139, so without this episode, percentage of lines spoken by main characters does not actually explain much variation in the episode ratings.</font>
+Given the statistics mentioned above, I wanted to understand which among them could help best explain variations in the IMDB rating of each episode. To do this, I used a variety of feature selection techniques, with ratings as my independent variable, to identify the most influential variables.
 <br><br>
-<font size="3">
-Next, I regressed ratings onto the number of lines by each character in each episode and followed with the number of words by each character in each episode. Lines per episode is not a significant predictor. For words per episode, Dustin seemed to explain some variation in the ratings, yet after taking out the outlier episode, the results proved insignificant.</font>
-<br><br>
-<font size="3">
-I then regressed ratings onto sentiment values to see if the percentage of a certain sentiment in an episode could explain variation in the rating. With a p-value from the overall F test rounding to 1, we can conclude sentiment does not explain a significant amount of variance in rating.</font>
-<br><br>
-<font size="3">
-Finally, I regressed rating onto the placement of the episode in the season to see if episodes earlier in the season scored lower than episodes later in the season. The results showed that placement was not a significant predi ctor, but after removing the outlier episode, placement became an extremely significant predictor, explaining 71% of the variation in ratings.</font>
-<br><br>
-<font size="3">
-Including the outlier episode, the variation in percentage of lines by main characters and number of words per character helped explain the variation in ratings. Excluding the outlier episode, it seems that the only significant factor that can explain variation in the ratings is the placement of the episode in the season -- episodes earlier in the season tend to score lower than episodes later in the season. </font>
+Within the dataset, each observation represents one episode and has the following features: </font>
+<br>
 
-```{r,echo=FALSE,warning=FALSE}
-results <- data.frame(Predictor=c("Percentage of Lines by Main Characters","Percentage of Lines by Main Characters wo/ Outlier", "Number of Lines Per Character","Number of Words Per Character", "Number of Words Per Character wo/ Outlier","Sentiment Values", "Episode Placement","Episode Placement wo/ Outlier"), "P_Value"=c("5.13e-05***","0.4139","0.08728.","0.03845*","0.6943","1","0.1019","2.22e-07***"),  "R_Squared" = c("0.517","0.03056","0.6103","0.6669","0.3566","6.739e-28","0.112","0.712"),"R_Squared_Adjusted"=c("0.496","-0.0135","0.3319","0.4291","-0.1383","-0.03646","0.07343","0.6989"), "Significance"=c("Moderately Significant","Not Significant","Not Significant","Moderately Significant","Not Significant","Not Significant","Not Significant","Significant" ))
+* Percent of lines by main characters (numerical)
+* Season (categorical, levels: 1,2,3)
+* Number of lines from each character within each episode (numerical)
+* Number of words from each character within each episode (numerical)
+* Percentage of each sentiment within each episode (numerical)
+   + sentiments include anger, anticipation, disgust, fear, joy, sadness, surprise, and trust
+* Episode placement within each season (categorical, levels: 1-8)
 
-formattable(results,align=c(rep("l",4)))
-# "Will"=formatter("span",style=style(color="saddlebrown",font.weight="bold"))
+<br>
+<br>
+
+#### Forward Step-Wise Selection
+
+<font size="3">
+To begin, I used forward step-wise selection as a way to find a set of variables that do a good job in explaining variation in IMDB ratings. To do this, I built several optimal models with varying numbers of features. For example, I created the optimal model with just one variable, then the optimal model with two variables, and so on and so forth. The idea is that the most influential features will be added earlier. Since we are using this technique to understand our original data better, we are not concerned with choosing the optimal number of predictors, as we would be if we were planning to build a model for prediction. The graph below shows us the R^2 value on the y-axis and the variables on the x-axis. For each level of R^2 in the graph, the variables used to achieve that level of R^2 are represented by black boxes.
+</font>
+```{r,echo=FALSE,results=FALSE,warning=FALSE,message=FALSE}
+set.seed(11)
+index = sample(1:24,18,replace = FALSE)
+train = df[index,]
+test = df[-index,]
+errors = rep(NA,11)
+regfit.fwd=regsubsets(Rating~.,data=train[,-1],nvmax=11,method="forward")
+
+plot(regfit.fwd,scale="r2")
+```
+<font size="3">
+<br><br>
+As we can see, there are a few variables that do the bulk of the work in explaining variation, and a few others that add bit by bit. If we consider only episode placement, number of words spoken by Joyce, number of lines from Nancy, and whether the episode was in season 2 or not, we can explain a sizeable chunk of the variation.
+ 
+<br> 
+Step-wise selection does not guarantee the perfect set of predictors. For example, if two variables are highly correlated and they both explain a good portion of the data, forward step-wise selection might only use one of them because the variation the other explained may already be accounted for. Still, we can use our results as a general guide. 
+
+Variables of importance according to forward step-wise selection:</font>
+<br>
+
+* Episode Placement
+* Number of words spoken by Joyce
+* Number of lines from Nancy
+* Season
+
+<br>
+<br>
+
+#### Random Forests
+
+<font size="3"> The next method I used was random forests. Through creating 500 trees, we can see which variables were used most often to explain an episode's rating. 
+</font>
+
+```{r,echo=FALSE,include=FALSE}
+rf.df = randomForest(Rating~.,data=df[,-1],nvmax=6,importance=T)
+A <- varImpPlot(rf.df)
+A <- as.data.frame(A)
+A$Variable = rownames(A)
+names(A) <- c("Perc.IncMSE","IncNodePurity","Variable")
+
 ```
 
+```{r,fig.height=4,echo=FALSE,warning=FALSE,message=FALSE}
+cols=viridis::magma(32)
+
+A %>% mutate(Variable=fct_reorder(Variable,desc(IncNodePurity))) %>%
+                ggplot(aes(x=Variable,y=IncNodePurity,fill=IncNodePurity))+
+                geom_bar(stat="identity",aes(fill=IncNodePurity))+
+                scale_fill_viridis_c(direction = -1)+
+                theme_classic()+
+                ggtitle("Importance of Variables Determined by Random Forest")+
+                theme(axis.text.x = element_text(angle=90),axis.title.x=element_blank(),axis.title.y = element_blank(),plot.title = element_text(hjust=.5),legend.position = "none")
+
+```
+
+<font size="3">
+The graph above plots the mean decrease in the gini index against the variables. The higher the value the average decrease in the gini index a variable has, the more important the variable is at explaining variation in ratings.
+
+From the graph above, we can conclude that, according to random forests, the most important variables in explaining variation in ratings are as follows:
+<br>
+</font>
+
+* Episode Placement
+* Dustin's number of lines 
+* Fear 
+
+<br>
+<br>
+
+
+#### Ridge Regression as a Variable selector
+
+<font size="3"> Next, I used ridge regression as a way to find important variables. Ridge regression will shrink the coefficients associated with variables that should have less influence on the model. After performing ridge regression, we can think of the variables with the largest coefficients as, by a certain measure, the most important features. </font>
+```{r,echo=FALSE,warning=FALSE}
+#Ridge
+
+X.scaled = scale(df[,-c(1,3)])
+df.scaled = data.frame(X.scaled, df[,3])
+
+X = model.matrix(Rating~.,data=df.scaled)
+y= df$Rating
+ridge.Model = glmnet(X,y,alpha=0)
+cv.ridge = cv.glmnet(X,y,alpha=0)
+bestlambda = cv.ridge$lambda.min
+x <- sort(round(abs(predict(ridge.Model, s=bestlambda,type="coefficients")[1:32,]),2),decreasing = TRUE)
+x <- data.frame("Variable"=names(x),"Coefficient"=unname(x))
+x <- x[-1,]
+x <- x %>% filter(abs(Coefficient)!=0)
+formattable(x,align=c(rep("l",10)))
+
+```
+<font size="3"> The table above shows the variables of the model that did not round to zero (using two decimals of precision). We can see that Episode Placement and percent of words categorized under sentiment value "fear" are most important. 
+
+Important Variables Determined by Ridge Regression: </font>
+<br>
+
+* Episode Placement
+* Fear
+
+
+#### Lasso Regression as a Variable selector
+<font size="3"> 
+Finally, I used Lasso Regression as my last method of identifying important variables. Lasso regression is also a shrinkage method, and we can interpret the results similarly to the results of ridge regression: the largest coeffiicient are associated with the variables of most importance.
+</font>
+
+```{r,warnings=FALSE,echo=FALSE,warning=FALSE}
+lasso.Model = glmnet(X,y,alpha=1)
+cv.lasso = cv.glmnet(X,y,alpha=1)
+bestlambda = cv.lasso$lambda.min
+x=sort(round(abs(predict(lasso.Model, s=bestlambda, type="coefficients")[1:32,]),2),decreasing = TRUE)
+x <- data.frame("Variable"=names(x),"Coefficient"=unname(x))
+x <- x[-1,]
+x <- x %>% filter(abs(Coefficient)!=0)
+formattable(x,align=c(rep("l",10)))
+```
+<font size="3"> The output above show the coefficients that, with three digits of percision, did not round to zero. In summary and according to Lasso, the important variables in explaining IMDB ratings are the following: </font>
+<br>
+
+* Episode Placement
+* Number of Words from Joyce
+* Fear
+* Disgust
+
+#### Feature Selection Summary
+<font size="3"> Each method of feature selection gives slightly differing results, yet all of the results grant insights into which factors affect an episode's rating. 
+
+***
+
+To start, every method lists Episode Placement as the most important variable, which gives us confidence in its importance as a variable. Additionally, Fear showed up as an important variable in 3 out of the 4 methods, and number of words spoken by Joyce showed up twice.
+
+Many of the methods also displayed to us that, while there are a few very important variables, most of the variables are equally minimally important. We can see this from our ridge regression output, as most of the variables had a coefficient estimate of 0.01. Additionally, we can see this same trend in our average decrease in gini index versus variables plot under random forests. 
+
+These results tell us that, to understand an episode's IMDB score, we must look at its placement in the season, the percentage of words classified with "fear" sentiment, the number of words from Joyce, and perhaps a few others.
+
+***
+While the results help shine light onto sources of variation of scores from existing episodes, they could also prove useful in producing the show going forward. If writers and directors understand the interactions between these variables and the IMDB ratings, they could optimize the show to the viewers' taste.
 
 ***
 ***
