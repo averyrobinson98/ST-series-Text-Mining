@@ -644,6 +644,8 @@ Important Variables Determined by Ridge Regression: </font>
 
 ***
 <br>
+<br>
+
 
 #### Lasso Regression as a Variable selector
 <font size="3"> 
@@ -668,6 +670,7 @@ formattable(x,align=c(rep("l",10)))
 * Fear
 * Disgust
 
+<br>
 <br>
 
 ***
