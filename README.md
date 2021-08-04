@@ -4,3 +4,5 @@
 speech, and sentiment patternns in the series. Additionally, I analyze IMBD ratings of each episode and ese a variety of statistical and machine learning techniques 
 to identify variables that help explain the variation observed ratings
 </div>
+
+Full Report: <href="https://averyrobinson98.github.io/ST-series-Text-Mining/" Full Report>
