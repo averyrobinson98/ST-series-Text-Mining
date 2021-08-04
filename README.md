@@ -5,4 +5,4 @@ speech, and sentiment patternns in the series. Additionally, I analyze IMBD rati
 to identify variables that help explain the variation observed ratings
 </div>
 
-[Full Report]("https://averyrobinson98.github.io/ST-series-Text-Mining/")
+[Full Report](https://averyrobinson98.github.io/ST-series-Text-Mining/)
