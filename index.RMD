@@ -128,7 +128,7 @@ gridExtra::grid.arrange(A,C,D,E,ncol=2)
 
 <font size="3"> The first aspect of these graphs that caught my eye was Eleven's top spot in "Average Word Length". I expected her to be near the bottom in each speaking-related category, yet after further analysis, it is clear that her frequent one-word lines omit typical _stop_ words -- such as "to" and "for" -- that would decrease her average.
 
-Another aspect of interest is Dustin's placements of first for most total lines, yet fifth for median number of words per line. These dual placements suggest he is a frequent, but short, speaker.
+Another aspect of interest is Dustin's placements of first for most total lines, yet fifth for median number of words per line. These dual placements suggest he is a frequent, succint, speaker.
 
 </font>
 
@@ -192,7 +192,7 @@ formattable(Props, list("Season"=formatter("span",style=~style(color="black",fon
 <font size="3">
 I performed a chi square test to see if the characters' speaking percentages fluctuated from season to season, which proved to be true. We can see that Eleven contributed much more in seasons 2 and 3 than in season 1, which is where most of her one-word lines happened. We can also see Will's change in contribution from Season 1 to Season 2 and 3, given he spent most of Season 1 out of sight.
 
-I was surprised to see that Steve's total percentage for Season 3 was lower than in the other seasons, yet its important to keep in mind that Season 3 had the highest number of lines of all the seasons (Season 3 had 4164 lines, while Season 2 and Season 1 had 3695 and 3413, respectively). Even though Steve had more lines in Season 3, it did not translate to him having a larger proportion of total lines from main characters.
+I was surprised to see that Steve's total percentage for Season 3 was lower than in the other seasons, yet Season 3 had the highest number of lines of all the seasons (Season 3 had 4164 lines, while Season 2 and Season 1 had 3695 and 3413, respectively). Even though Steve had more lines in Season 3, it did not translate to him having a larger proportion of total lines from main characters.
 </font>
 
 ***
@@ -225,7 +225,7 @@ MostCom %>%
 #ggplot2::annotate("segment",x="Will",xend="Dustin",y=1700,yend=1700,colour="black",arrow=arrow())
 ```
 
-<font size="3"> Naturally, we see many names near the top. We also see other familiar words up top such as "sh\*t", "god", and "guys", which are three of the most common words in the series with counts of 240, 144, and 110, respectively. </font>
+<font size="3"> Naturally, we see many names near the top. We also see other familiar words up top such as "god" and "guys", which are two of the most common words in the series with counts of 144 and 110, respectively. </font>
 
 ***
 
@@ -340,9 +340,7 @@ Additionally, Nancy and Jonathan seem to speak a bit more simalrly to Joyce and 
 #### Series Sentiment Analysis
 
 
-<font size="3"> After the initial word analysis, I wanted to analyze the scripts by sentiment values. Using the afinn library in R, I categorized the words of each episode as "negative", "positive", or "neutral". Each negatively and positively indexed word came with an intensity rating. For example, "afflicted" would have an intensity rating of -1, while "affection" would have an intensity rating of 3. I then summed the negatively and positively indexed words from each episode to make the following graph.
-
-calculated the sentiment values of the words from each episode   </font>
+<font size="3"> After the initial word analysis, I wanted to analyze the scripts by sentiment values. Using the afinn library in R, I categorized the words of each episode as "negative", "positive", or "neutral". Each negatively and positively indexed word came with an intensity rating. For example, "afflicted" would have an intensity rating of -1, while "affection" would have an intensity rating of 3. I then summed the negatively and positively indexed words from each episode to make the following graph.</font>
 
 
 ```{r,warning=FALSE,echo=FALSE,message=FALSE,fig.width=10}
@@ -504,7 +502,7 @@ ggplot(LinesByMainChars,aes(x=Episode,group=1))+
 ```
 
 <br>
-<font size="3"> The trend in ratings is one of the most clear trends thus far. Given that each season represents its own color, the graph shows that IMDB scores tend to increase as the season progresses. The black vertical line represents the average of all the ratings, so we see that episodes tend to be below average the first few episodes of the season and above average for the last few episodes of the season. The exception to this trend is Episode 7 of Season 2: The Lost Sister. </font>
+<font size="3"> The trend in ratings is evident. Given that each season represents its own color, the graph shows that IMDB scores tend to increase as the season progresses. The black vertical line represents the average of all the ratings, so we see that episodes tend to be below average the first few episodes of the season and above average for the last few episodes of the season. The exception to this trend is Episode 7 of Season 2: The Lost Sister. </font>
 
 <br>
 <font size="3"> The Lost Sister episode mainly contained only one main character, which made me wonder if episodes with higher percentages of lines from main characters tended to rate higher.I calculated the percentage of lines spoken by main characters for each episode and obtained the following results. </font>
@@ -524,7 +522,7 @@ ggplot(LinesByMainChars,aes(x=Episode,group=1))+
 ## Feature Selection
 
 <font size="3">
-It is clear that episode placement within each season is influential to an episode's IMDB rating. I was curious to find out which of the other statistics mentioned above might also have influence. In order to explore this question, I used a variety of machine learning techniques with different feature selection properties and compared results. I started with forward stepwise selection, moved on to random forests, and ended with ridge and lasso regression. </font>
+It is clear that episode placement within each season is influential to an episode's IMDB rating. I was curious to find out which of the other statistics mentioned above might also have influence. In order to explore this question, I used a variety of machine learning techniques with different feature selection properties and compared results. I started with forward stepwise selection, moved on to random forests, and ended with regularization. </font>
 ```{r,echo=FALSE}
 #I began with the correlations of each numerical predictor with the independent variable of IMDB rating: 
 tab = cor(df[,4],df[,-c(1,3:4)])
