@@ -128,7 +128,7 @@ gridExtra::grid.arrange(A,C,D,E,ncol=2)
 
 <font size="3"> The first aspect of these graphs that caught my eye was Eleven's top spot in "Average Word Length". I expected her to be near the bottom in each speaking-related category, yet after further analysis, it is clear that her frequent one-word lines omit typical _stop_ words -- such as "to" and "for" -- that would decrease her average.
 
-Another aspect of interest is Dustin's placements of first for most total lines, yet fifth for median number of words per line. These dual placements suggest he is a frequent, but short, speaker, which is relevant in considering Dustin is the character with the highest number of "sh\*t"s in the series.
+Another aspect of interest is Dustin's placements of first for most total lines, yet fifth for median number of words per line. These dual placements suggest he is a frequent, but short, speaker.
 
 </font>
 
